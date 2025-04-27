@@ -1,0 +1,12 @@
+# shell scripts
+*.sh
+
+# vhs input files
+*.tape
+
+# vhs common output files
+*.gif
+*.webm
+
+# temporary files
+*.swp
