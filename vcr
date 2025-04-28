@@ -129,7 +129,11 @@ do
             echo "Ctrl+L"
         fi
         [[ "${line}" =~ "hide" ]] && echo "Hide" && HIDE="hidden"
-        [[ "${line}" =~ "show" ]] && [ -n "${HIDE}" ] && HIDE="" && echo "Show"
+        if [[ "${line}" =~ "show" ]] && [ -n "${HIDE}" ]
+        then
+            HIDE=""
+            echo "Show"
+        fi
         if [[ "${line}" =~ "wait" ]]
         then
             WAIT="$(echo "${line}" | sed -e 's#.*wait="\([^"]*\)".*#\1#')"
@@ -151,7 +155,8 @@ do
     # Run 'noop' commands for displaying comments
     if [[ "${line}" == "#"* ]]
     then
-        [ -z "${HIDE}" ] && continue
+        # do not show comments if commands are hidden
+        [ -n "${HIDE}" ] && continue
         REM='`'
     fi
     # Run and wait for command
