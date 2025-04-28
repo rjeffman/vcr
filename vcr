@@ -1,0 +1,175 @@
+#!/bin/bash -eu
+
+die() {
+    echo "FATAL: $*" >&2
+    exit 1
+}
+
+usage() {
+cat << EOF
+usage: vcr [-h] [-r REQUIRE] [-o OUTPUT_FMT] [-g GEOMETRY] [-p PROMPT]
+           [-f FONT_SIZE] [-c COMMENT] [SCRIPT]
+
+positional arguments:
+
+    SCRIPT          The script to create the VHS tape. If not given,
+                    will read form standard input.
+
+options:
+
+    -h              display this message and exit
+    -r REQUIRE      add a command that is required for the tape creation
+                    (May be used multiple times.)
+    -o OUTPUT_FMT   the output file format (default: webm)
+    -g GEOMETRY     the output window geometry (WxH) in pixels
+                    (default: 1200x800)
+    -p PROMPT       The regex for the command prompt for 'Wait'
+    -f FONT_SIZE    the font size (default: 16)
+    -c COMMENT      the time to wait after a comment is displayed
+                    (default: 5s)
+
+EOF
+}
+
+quiet() {
+    $* >/dev/null 2>/dev/null
+}
+
+# defaults
+PRECUT="2s"    # seconds before demo start
+POSTCUT="1s"  # seconds at demo end
+WIDTH="1200"  # screen width
+HEIGHT="800"  # screen height
+FONT="16"     # font size
+FORMAT="webm" # output format
+DEFAULT_PROMPT='/.*[\$#] *$/'  # default prompt regex for Wait
+COMMENT_SLEEP="5s"   # Default time to display comments
+CLEAR_TIME="3s"      # Default time before clearing screen
+
+declare -a REQUIRES=()
+
+# Handle CLI options
+while getopts ":hc:f:g:o:p:r:" option
+do
+    case "${option}" in
+        h) usage && exit 0 ;;
+        c) COMMENT_SLEEP="${OPTARG}" ;;
+        f) FONT="${OPTARG}" ;;
+        g)
+            WIDTH="$(cut -dx -f1 <<< "${OPTARG}")"
+            HEIGHT="$(cut -dx -f2 <<< "${OPTARG}")"
+        ;;
+        o) FORMAT="${OPTARG}" ;;
+        p) DEFAULT_PROMPT="/${OPTARG}/" ;;
+        r) REQUIRES+=("${OPTARG}") ;;
+        *) die "Invalid option: ${OPTARG}" ;;
+    esac
+done
+
+shift $[OPTIND - 1]
+[ $# -le 1 ] || die "Only one script can be processed at a time."
+
+# script to execute
+SCRIPT="${1:--}"
+
+# output file
+if [ "${SCRIPT}" == "-" ]
+then
+    OUTPUT="out.${FORMAT}"
+else
+    [ -f "${SCRIPT}" ] || die "Script '${SCRIPT}' not found."
+    OUTPUT="$(basename "${SCRIPT}" | cut -d. -f 1).${FORMAT}"
+fi
+
+# check dependencies
+for cmd in vhs "${REQUIRES[@]}"
+do
+    quiet command -v "${cmd}" || die "Cannot find '${cmd}' executable on PATH"
+done
+
+[ -x "./setup.sh" ] && ./setup.sh
+
+
+# tape header.
+cat <<EOF
+Output ${OUTPUT}
+Set FontSize ${FONT}
+Set Width ${WIDTH}
+Set Height ${HEIGHT}
+EOF
+
+# Requires
+for req in "${REQUIRES[@]}"
+do
+    echo "Require ${req}"
+done
+
+# Start recording
+echo "Sleep ${PRECUT}"
+
+# Initialize VCR vars
+PROMPT=" ${DEFAULT_PROMPT}"
+REM=""
+WAIT="${PROMPT}"
+SLEEP=""
+HIDE=""
+
+cat "${SCRIPT}" | sed -e '/^#!/d' -e '/^$/d' | while read line
+do
+    if [[ "${line}" == "# vcr:"* ]]
+    then
+        line="$(echo ${line} | sed -e "s/--.*//")"
+        if [[ "${line}" =~ "clear" ]]
+        then
+            CLEAR="$(echo "${line}" | sed -e 's#.*\(clear[^ ]*\).*#\1#' | cut -d= -f2)"
+            if [ -z "${HIDE}" ]
+            then
+                [[ "${CLEAR}" == "clear" ]] && echo "Sleep ${CLEAR_TIME}" || echo "Sleep ${CLEAR}"
+            fi
+            echo "Ctrl+L"
+        fi
+        [[ "${line}" =~ "hide" ]] && echo "Hide" && HIDE="hidden"
+        [[ "${line}" =~ "show" ]] && [ -n "${HIDE}" ] && HIDE="" && echo "Show"
+        if [[ "${line}" =~ "wait" ]]
+        then
+            WAIT="$(echo "${line}" | sed -e 's#.*wait="\([^"]*\)".*#\1#')"
+        fi
+        if [[ "${line}" =~ "sleep" ]]
+        then
+            SLEEP="$(echo "${line}" | sed -e 's#.*sleep=\([^ ]*\).*#\1#')"
+        fi
+        if [[ "${line}" =~ "prompt" ]]
+        then
+            PROMPT="$(echo "${line}" | sed -e 's#.*prompt=\(/[^/]*/\).*# \1#')"
+        fi
+        if [[ "${line}" =~ "timeout" ]]
+        then
+            WAIT="@$(echo "${line}" | sed -e 's#.*timeout=\([^ ]*\).*#\1#') ${PROMPT}"
+        fi
+        continue
+    fi
+    # Run 'noop' commands for displaying comments
+    if [[ "${line}" == "#"* ]]
+    then
+        [ -z "${HIDE}" ] && continue
+        REM='`'
+    fi
+    # Run and wait for command
+    echo "Type \"${REM}${line}${REM}\""
+    [ -z "${HIDE}" ] && echo -e "Sleep 500ms"
+    echo "Enter"
+    if [ -n "${REM}" ]
+    then
+        echo "Sleep ${SLEEP:-${COMMENT_SLEEP}}"
+    else
+        [ -z "${SLEEP}" ] && echo "Wait${WAIT}" ||  echo "Sleep ${SLEEP}"
+    fi
+
+    # Reset VCR vars
+    PROMPT=" ${DEFAULT_PROMPT}"
+    REM=""
+    WAIT="${PROMPT}"
+    SLEEP=""
+done
+
+echo "Sleep ${POSTCUT}"
