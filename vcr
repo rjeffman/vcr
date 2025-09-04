@@ -28,11 +28,43 @@ options:
     -c COMMENT      the time to wait after a comment is displayed
                     (default: 5s)
 
+    -t              Output a template script to stdout
+
 EOF
 }
 
 quiet() {
     $* >/dev/null 2>/dev/null
+}
+
+template_script() {
+
+    cat <<EOF
+#!/bin/bash -eu
+
+# vcr: -- This script was used to create the demo video using VCR.
+# vcr: -- Check the repository at https://github.com/rjeffman/vcr
+
+# vcr: hide  -- Setup environment.
+
+# vcr: show clear  -- It's nice to always 'clear' at the end of setup
+# vcr: -- Add your demo script here.
+
+# vcr: hide  -- Cleanup environment
+
+# vcr: --
+# vcr: -- The options manual
+# vcr: --
+# vcr: -- hide: Disable screen output
+# vcr: -- show: Enable screen output
+# vcr: -- clear[=<time>]: clear the screen after <time>
+# vcr: -- sleep[=<time>]: wait <time>
+# vcr: -- prompt=/<regex>/: Set the "prompt" that marks end of command
+# vcr: -- timeout=<time>: Set time to wait for the next command to finish
+# vcr: --
+# vcr: -- <time>: Can be 's' (seconds), 'm' (minutes) or 'ms' (miliseconds)
+# vcr: -- Multiple commands can be used like "# vcr: show clear sleep=500ms"
+EOF
 }
 
 # defaults
@@ -49,7 +81,7 @@ CLEAR_TIME="3s"      # Default time before clearing screen
 declare -a REQUIRES=()
 
 # Handle CLI options
-while getopts ":hc:f:g:o:p:r:" option
+while getopts ":hc:f:g:o:p:r:t" option
 do
     case "${option}" in
         h) usage && exit 0 ;;
@@ -62,6 +94,7 @@ do
         o) FORMAT="${OPTARG}" ;;
         p) DEFAULT_PROMPT="/${OPTARG}/" ;;
         r) REQUIRES+=("${OPTARG}") ;;
+        t) template_script && exit 0 ;;
         *) die "Invalid option: ${OPTARG}" ;;
     esac
 done
