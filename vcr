@@ -45,12 +45,14 @@ template_script() {
 # vcr: -- This script was used to create the demo video using VCR.
 # vcr: -- Check the repository at https://github.com/rjeffman/vcr
 
-# vcr: hide  -- Setup environment.
+# vcr: sleep=3s  -- give the video some lead
+# vcr: hide  -- Cleanup environment
 
 # vcr: show clear  -- It's nice to always 'clear' at the end of setup
 # vcr: -- Add your demo script here.
 
 # vcr: hide  -- Cleanup environment
+# vcr: sleep=3s  -- give the video some lead
 
 # vcr: --
 # vcr: -- The options manual
