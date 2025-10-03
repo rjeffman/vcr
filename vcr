@@ -34,7 +34,7 @@ EOF
 }
 
 quiet() {
-    $* >/dev/null 2>/dev/null
+    "$@" >/dev/null 2>/dev/null
 }
 
 template_script() {
@@ -86,7 +86,7 @@ declare -a REQUIRES=()
 while getopts ":hc:f:g:o:p:r:t" option
 do
     case "${option}" in
-        h) usage && exit 0 ;;
+        h) usage ; exit 0 ;;
         c) COMMENT_SLEEP="${OPTARG}" ;;
         f) FONT="${OPTARG}" ;;
         g)
@@ -96,34 +96,32 @@ do
         o) FORMAT="${OPTARG}" ;;
         p) DEFAULT_PROMPT="/${OPTARG}/" ;;
         r) REQUIRES+=("${OPTARG}") ;;
-        t) template_script && exit 0 ;;
+        t) template_script ; exit 0 ;;
         *) die "Invalid option: ${OPTARG}" ;;
     esac
 done
 
-shift $[OPTIND - 1]
-[ $# -le 1 ] || die "Only one script can be processed at a time."
+shift $((OPTIND - 1))
+[[ $# -le 1 ]] || die "Only one script can be processed at a time."
 
 # script to execute
-SCRIPT="${1:--}"
+SCRIPT="${1:-"/dev/stdin"}"
 
 # output file
-if [ "${SCRIPT}" == "-" ]
+if [[ "${SCRIPT}" == "-" ]]
 then
     OUTPUT="out.${FORMAT}"
 else
-    [ -f "${SCRIPT}" ] || die "Script '${SCRIPT}' not found."
+    [[ -f "${SCRIPT}" ]] || die "Script '${SCRIPT}' not found."
     OUTPUT="$(basename "${SCRIPT}" | cut -d. -f 1).${FORMAT}"
 fi
 
 # check dependencies
 for cmd in vhs "${REQUIRES[@]}"
 do
+    # shellcheck disable=SC2310
     quiet command -v "${cmd}" || die "Cannot find '${cmd}' executable on PATH"
 done
-
-[ -x "./setup.sh" ] && ./setup.sh
-
 
 # tape header.
 cat <<EOF
@@ -149,41 +147,47 @@ WAIT="${PROMPT}"
 SLEEP=""
 HIDE=""
 
-cat "${SCRIPT}" | sed -e '/^#!/d' -e '/^$/d' | while read line
+# shellcheck disable=SC2312
+sed -e '/^#!/d' -e '/^$/d' < "${SCRIPT}" | while read -r line
 do
     if [[ "${line}" == "# vcr:"* ]]
     then
-        line="$(echo ${line} | sed -e "s/--.*//")"
+        line="${line//--*/}"
         if [[ "${line}" =~ "clear" ]]
         then
-            CLEAR="$(echo "${line}" | sed -e 's#.*\(clear[^ ]*\).*#\1#' | cut -d= -f2)"
-            if [ -z "${HIDE}" ]
+            # shellcheck disable=SC2001,SC2312
+            CLEAR="$(sed -e 's#.*\(clear[^ ]*\).*#\1#' <<< "${line}" | cut -d= -f2)"
+            if [[ -z "${HIDE}" ]]
             then
                 [[ "${CLEAR}" == "clear" ]] && echo "Sleep ${CLEAR_TIME}" || echo "Sleep ${CLEAR}"
             fi
             echo "Ctrl+L"
         fi
         [[ "${line}" =~ "hide" ]] && echo "Hide" && HIDE="hidden"
-        if [[ "${line}" =~ "show" ]] && [ -n "${HIDE}" ]
+        if [[ "${line}" =~ "show" ]] && [[ -n "${HIDE}" ]]
         then
             HIDE=""
             echo "Show"
         fi
         if [[ "${line}" =~ "wait" ]]
         then
-            WAIT="$(echo "${line}" | sed -e 's#.*wait="\([^"]*\)".*#\1#')"
+            # shellcheck disable=SC2001
+            WAIT="$(sed -e 's#.*wait="\([^"]*\)".*#\1#' <<< "${line}")"
         fi
         if [[ "${line}" =~ "sleep" ]]
         then
-            SLEEP="$(echo "${line}" | sed -e 's#.*sleep=\([^ ]*\).*#\1#')"
+            # shellcheck disable=SC2001
+            SLEEP="$(sed -e 's#.*sleep=\([^ ]*\).*#\1#' <<< "${line}")"
         fi
         if [[ "${line}" =~ "prompt" ]]
         then
-            PROMPT="$(echo "${line}" | sed -e 's#.*prompt=\(/[^/]*/\).*# \1#')"
+            # shellcheck disable=SC2001
+            PROMPT="$(sed -e 's#.*prompt=\(/[^/]*/\).*# \1#' <<< "${line}")"
         fi
         if [[ "${line}" =~ "timeout" ]]
         then
-            WAIT="@$(echo "${line}" | sed -e 's#.*timeout=\([^ ]*\).*#\1#') ${PROMPT}"
+            # shellcheck disable=SC2001
+            WAIT="@$(sed -e 's#.*timeout=\([^ ]*\).*#\1#' <<< "${line}") ${PROMPT}"
         fi
         continue
     fi
@@ -191,18 +195,18 @@ do
     if [[ "${line}" == "#"* ]]
     then
         # do not show comments if commands are hidden
-        [ -n "${HIDE}" ] && continue
+        [[ -n "${HIDE}" ]] && continue
         REM='`'
     fi
     # Run and wait for command
     grep -q "\"" <<< "${line}" && echo "Type '${REM}${line}${REM}'" || echo "Type \"${REM}${line}${REM}\""
-    [ -z "${HIDE}" ] && echo -e "Sleep 500ms"
+    [[ -z "${HIDE}" ]] && echo -e "Sleep 500ms"
     echo "Enter"
-    if [ -n "${REM}" ]
+    if [[ -n "${REM}" ]]
     then
         echo "Sleep ${SLEEP:-${COMMENT_SLEEP}}"
     else
-        [ -z "${SLEEP}" ] && echo "Wait${WAIT}" ||  echo "Sleep ${SLEEP}"
+        [[ -z "${SLEEP}" ]] && echo "Wait${WAIT}" ||  echo "Sleep ${SLEEP}"
     fi
 
     # Reset VCR vars
