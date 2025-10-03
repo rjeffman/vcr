@@ -195,7 +195,7 @@ do
         REM='`'
     fi
     # Run and wait for command
-    echo "Type \"${REM}${line}${REM}\""
+    grep -q "\"" <<< "${line}" && echo "Type '${REM}${line}${REM}'" || echo "Type \"${REM}${line}${REM}\""
     [ -z "${HIDE}" ] && echo -e "Sleep 500ms"
     echo "Enter"
     if [ -n "${REM}" ]
