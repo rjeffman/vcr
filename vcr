@@ -63,8 +63,10 @@ template_script() {
 # vcr: -- sleep[=<time>]: wait <time>
 # vcr: -- prompt=/<regex>/: Set the "prompt" that marks end of command
 # vcr: -- timeout=<time>: Set time to wait for the next command to finish
+# vcr: -- stdin=<textline>: Type <textline> for the next command stdin
 # vcr: --
 # vcr: -- <time>: Can be 's' (seconds), 'm' (minutes) or 'ms' (miliseconds)
+# vcr: -- "stdin" must be the last command on the line
 # vcr: -- Multiple commands can be used like "# vcr: show clear sleep=500ms"
 EOF
 }
@@ -142,10 +144,7 @@ echo "Sleep ${PRECUT}"
 
 # Initialize VCR vars
 PROMPT=" ${DEFAULT_PROMPT}"
-REM=""
 WAIT="${PROMPT}"
-SLEEP=""
-HIDE=""
 
 # shellcheck disable=SC2312
 sed -e '/^#!/d' -e '/^$/d' < "${SCRIPT}" | while read -r line
@@ -189,6 +188,11 @@ do
             # shellcheck disable=SC2001
             WAIT="@$(sed -e 's#.*timeout=\([^ ]*\).*#\1#' <<< "${line}") ${PROMPT}"
         fi
+        if [[ "${line}" =~ "stdin" ]]
+        then
+            # shellcheck disable=SC2001
+            TEXTLINE="$(sed -e 's#.*stdin=\(.*\)#\1#' <<< "${line}")"
+        fi
         continue
     fi
     # Run 'noop' commands for displaying comments
@@ -200,20 +204,27 @@ do
     fi
     # Run and wait for command
     grep -q "\"" <<< "${line}" && echo "Type '${REM}${line}${REM}'" || echo "Type \"${REM}${line}${REM}\""
-    [[ -z "${HIDE}" ]] && echo -e "Sleep 500ms"
+    [[ -z "${HIDE:-}" ]] && echo -e "Sleep 500ms"
     echo "Enter"
-    if [[ -n "${REM}" ]]
+    if [[ -n "${TEXTLINE:-}" ]]
+    then
+        echo "Type '${TEXTLINE}'"
+        [[ -z "${HIDE:-}" ]] && echo -e "Sleep 500ms"
+        echo "Enter"
+    fi
+    if [[ -n "${REM:-}" ]]
     then
         echo "Sleep ${SLEEP:-${COMMENT_SLEEP}}"
     else
-        [[ -z "${SLEEP}" ]] && echo "Wait${WAIT}" ||  echo "Sleep ${SLEEP}"
+        [[ -z "${SLEEP:-}" ]] && echo "Wait${WAIT}" ||  echo "Sleep ${SLEEP}"
     fi
 
     # Reset VCR vars
     PROMPT=" ${DEFAULT_PROMPT}"
-    REM=""
     WAIT="${PROMPT}"
+    REM=""
     SLEEP=""
+    TEXTLINE=""
 done
 
 echo "Sleep ${POSTCUT}"
