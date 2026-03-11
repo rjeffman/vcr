@@ -107,7 +107,7 @@ shift $((OPTIND - 1))
 [[ $# -le 1 ]] || die "Only one script can be processed at a time."
 
 # script to execute
-SCRIPT="${1:-"/dev/stdin"}"
+SCRIPT="${1:-"-"}"
 
 # output file
 if [[ "${SCRIPT}" == "-" ]]
@@ -145,6 +145,9 @@ echo "Sleep ${PRECUT}"
 # Initialize VCR vars
 PROMPT=" ${DEFAULT_PROMPT}"
 WAIT="${PROMPT}"
+REM=""
+SLEEP=""
+TEXTLINE=""
 
 # shellcheck disable=SC2312
 sed -e '/^#!/d' -e '/^$/d' < "${SCRIPT}" | while read -r line
@@ -199,7 +202,7 @@ do
     if [[ "${line}" == "#"* ]]
     then
         # do not show comments if commands are hidden
-        [[ -n "${HIDE}" ]] && continue
+        [[ -n "${HIDE:-}" ]] && continue
         REM='`'
     fi
     # Run and wait for command
