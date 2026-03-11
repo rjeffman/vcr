@@ -68,6 +68,7 @@ template_script() {
 # vcr: -- <time>: Can be 's' (seconds), 'm' (minutes) or 'ms' (miliseconds)
 # vcr: -- "stdin" must be the last command on the line
 # vcr: -- Multiple commands can be used like "# vcr: show clear sleep=500ms"
+# vcr: -- Multiline commands are supported using backslash continuation
 EOF
 }
 
@@ -150,7 +151,7 @@ SLEEP=""
 TEXTLINE=""
 
 # shellcheck disable=SC2312
-sed -e '/^#!/d' -e '/^$/d' < "${SCRIPT}" | while read -r line
+sed -e '/^#!/d' -e '/^$/d' "${SCRIPT}" | sed -e ':a' -e '/\\$/N' -e 's/\\\n//' -e 'ta' | while read -r line
 do
     if [[ "${line}" == "# vcr:"* ]]
     then
