@@ -8,7 +8,7 @@ die() {
 usage() {
 cat << EOF
 usage: vcr [-h] [-r REQUIRE] [-o OUTPUT_FMT] [-g GEOMETRY] [-p PROMPT]
-           [-f FONT_SIZE] [-c COMMENT] [SCRIPT]
+           [-f FONT_SIZE] [-s PIXELS] [-c COMMENT] [SCRIPT]
 
 positional arguments:
 
@@ -25,6 +25,7 @@ options:
                     (default: 1200x800)
     -p PROMPT       The regex for the command prompt for 'Wait'
     -f FONT_SIZE    the font size (default: 16)
+    -s PIXELS       the padding of the terminal frame in pixels
     -c COMMENT      the time to wait after a comment is displayed
                     (default: 5s)
 
@@ -78,6 +79,7 @@ POSTCUT="1s"  # seconds at demo end
 WIDTH="1200"  # screen width
 HEIGHT="800"  # screen height
 FONT="16"     # font size
+PADDING=""    # terminal frame padding
 FORMAT="webm" # output format
 DEFAULT_PROMPT='/.*[\$#] *$/'  # default prompt regex for Wait
 COMMENT_SLEEP="5s"   # Default time to display comments
@@ -86,7 +88,7 @@ CLEAR_TIME="3s"      # Default time before clearing screen
 declare -a REQUIRES=()
 
 # Handle CLI options
-while getopts ":hc:f:g:o:p:r:t" option
+while getopts ":hc:f:g:o:p:r:s:t" option
 do
     case "${option}" in
         h) usage ; exit 0 ;;
@@ -99,6 +101,7 @@ do
         o) FORMAT="${OPTARG}" ;;
         p) DEFAULT_PROMPT="/${OPTARG}/" ;;
         r) REQUIRES+=("${OPTARG}") ;;
+        s) PADDING="${OPTARG}" ;;
         t) template_script ; exit 0 ;;
         *) die "Invalid option: ${OPTARG}" ;;
     esac
@@ -133,6 +136,9 @@ Set FontSize ${FONT}
 Set Width ${WIDTH}
 Set Height ${HEIGHT}
 EOF
+
+# Set padding if specified
+[[ -n "${PADDING}" ]] && echo "Set Padding ${PADDING}"
 
 # Requires
 for req in "${REQUIRES[@]}"
