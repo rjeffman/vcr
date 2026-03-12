@@ -151,7 +151,7 @@ SLEEP=""
 TEXTLINE=""
 
 # shellcheck disable=SC2312
-sed -e '/^#!/d' -e '/^$/d' "${SCRIPT}" | sed -e ':a' -e '/\\$/N' -e 's/\\\n//' -e 'ta' | while read -r line
+sed -e '/^#!/d' -e '/^$/d' "${SCRIPT}" | while IFS='' read -r line
 do
     if [[ "${line}" == "# vcr:"* ]]
     then
@@ -206,7 +206,19 @@ do
         [[ -n "${HIDE:-}" ]] && continue
         REM='`'
     fi
-    # Run and wait for command
+
+    # Check if line ends with backslash (multiline command continuation)
+    if [[ "${line}" =~ \\[[:space:]]*$ ]]
+    then
+        # Type the line with backslash and press Enter, but don't wait
+        grep -q "\"" <<< "${line}" && echo "Type '${REM}${line}${REM}'" || echo "Type \"${REM}${line}${REM}\""
+        [[ -z "${HIDE:-}" ]] && echo -e "Sleep 500ms"
+        echo "Enter"
+        # Don't wait or reset vars - this is a continuation line
+        continue
+    fi
+
+    # Run and wait for command (final line or single-line command)
     grep -q "\"" <<< "${line}" && echo "Type '${REM}${line}${REM}'" || echo "Type \"${REM}${line}${REM}\""
     [[ -z "${HIDE:-}" ]] && echo -e "Sleep 500ms"
     echo "Enter"
